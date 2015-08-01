@@ -6904,6 +6904,11 @@
                     BuildAction = "Compile"
                 />
                 <File
+                    RelPath = "src\security\ISignerFactory.cs"
+                    SubType = "Code"
+                    BuildAction = "Compile"
+                />
+                <File
                     RelPath = "src\security\WrapperUtilities.cs"
                     SubType = "Code"
                     BuildAction = "Compile"
