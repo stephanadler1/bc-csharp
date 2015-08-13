@@ -267,10 +267,10 @@ namespace Org.BouncyCastle.Security
             oids["GOST3410"] = CryptoProObjectIdentifiers.GostR3411x94WithGostR3410x94;
             oids["ECGOST3410"] = CryptoProObjectIdentifiers.GostR3411x94WithGostR3410x2001;
 
-            SignerFactory = DefaultSignerFactor;
+            SignerFactory = DefaultSignerFactory;
         }
 
-        public static ISignerFactory DefaultSignerFactor { get { return defaultSignerFactory; } }
+        public static ISignerFactory DefaultSignerFactory { get { return defaultSignerFactory; } }
 
         public static ISignerFactory SignerFactory
         {
