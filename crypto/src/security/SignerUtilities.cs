@@ -1,7 +1,7 @@
 using System;
 using System.Collections;
 using System.IO;
-
+using System.Threading;
 using Org.BouncyCastle.Asn1;
 using Org.BouncyCastle.Asn1.CryptoPro;
 using Org.BouncyCastle.Asn1.Nist;
@@ -30,6 +30,8 @@ namespace Org.BouncyCastle.Security
 
         internal static readonly IDictionary algorithms = Platform.CreateHashtable();
         internal static readonly IDictionary oids = Platform.CreateHashtable();
+        internal static readonly ISignerFactory defaultSignerFactory = new DefaultSignerFactoryImpl();
+        private static ISignerFactory signerFactory;
 
         static SignerUtilities()
         {
@@ -264,6 +266,24 @@ namespace Org.BouncyCastle.Security
 
             oids["GOST3410"] = CryptoProObjectIdentifiers.GostR3411x94WithGostR3410x94;
             oids["ECGOST3410"] = CryptoProObjectIdentifiers.GostR3411x94WithGostR3410x2001;
+
+            SignerFactory = DefaultSignerFactory;
+        }
+
+        public static ISignerFactory DefaultSignerFactory { get { return defaultSignerFactory; } }
+
+        public static ISignerFactory SignerFactory
+        {
+            get { return signerFactory; }
+            set
+            {
+                if (value == null)
+                {
+                    throw new ArgumentNullException("value", "SignerFactory cannot be null.");
+                }
+
+                Interlocked.Exchange(ref signerFactory, value);
+            } 
         }
 
         /// <summary>
@@ -351,194 +371,207 @@ namespace Org.BouncyCastle.Security
         public static ISigner GetSigner(
             string algorithm)
         {
-            if (algorithm == null)
-                throw new ArgumentNullException("algorithm");
+            return SignerFactory.GetSigner(algorithm);
+        }
 
-            algorithm = Platform.ToUpperInvariant(algorithm);
+        public static string GetEncodingName(
+            DerObjectIdentifier oid)
+        {
+            return (string) algorithms[oid.Id];
+        }
 
-            string mechanism = (string) algorithms[algorithm];
+        private class DefaultSignerFactoryImpl : ISignerFactory
+        {
+            public ISigner GetSigner(string algorithm)
+            {
+                if (algorithm == null)
+                    throw new ArgumentNullException("algorithm");
 
-            if (mechanism == null)
-                mechanism = algorithm;
+                algorithm = Platform.ToUpperInvariant(algorithm);
 
-            if (mechanism.Equals("RSA"))
-            {
-                return (new RsaDigestSigner(new NullDigest(), (AlgorithmIdentifier)null));
-            }
-            if (mechanism.Equals("MD2withRSA"))
-            {
-                return (new RsaDigestSigner(new MD2Digest()));
-            }
-            if (mechanism.Equals("MD4withRSA"))
-            {
-                return (new RsaDigestSigner(new MD4Digest()));
-            }
-            if (mechanism.Equals("MD5withRSA"))
-            {
-                return (new RsaDigestSigner(new MD5Digest()));
-            }
-            if (mechanism.Equals("SHA-1withRSA"))
-            {
-                return (new RsaDigestSigner(new Sha1Digest()));
-            }
-            if (mechanism.Equals("SHA-224withRSA"))
-            {
-                return (new RsaDigestSigner(new Sha224Digest()));
-            }
-            if (mechanism.Equals("SHA-256withRSA"))
-            {
-                return (new RsaDigestSigner(new Sha256Digest()));
-            }
-            if (mechanism.Equals("SHA-384withRSA"))
-            {
-                return (new RsaDigestSigner(new Sha384Digest()));
-            }
-            if (mechanism.Equals("SHA-512withRSA"))
-            {
-                return (new RsaDigestSigner(new Sha512Digest()));
-            }
-            if (mechanism.Equals("RIPEMD128withRSA"))
-            {
-                return (new RsaDigestSigner(new RipeMD128Digest()));
-            }
-            if (mechanism.Equals("RIPEMD160withRSA"))
-            {
-                return (new RsaDigestSigner(new RipeMD160Digest()));
-            }
-            if (mechanism.Equals("RIPEMD256withRSA"))
-            {
-                return (new RsaDigestSigner(new RipeMD256Digest()));
-            }
+                string mechanism = (string)algorithms[algorithm];
 
-            if (mechanism.Equals("RAWRSASSA-PSS"))
-            {
-                // TODO Add support for other parameter settings
-                return PssSigner.CreateRawSigner(new RsaBlindedEngine(), new Sha1Digest());
-            }
-            if (mechanism.Equals("PSSwithRSA"))
-            {
-                // TODO The Sha1Digest here is a default. In JCE version, the actual digest
-                // to be used can be overridden by subsequent parameter settings.
-                return (new PssSigner(new RsaBlindedEngine(), new Sha1Digest()));
-            }
-            if (mechanism.Equals("SHA-1withRSAandMGF1"))
-            {
-                return (new PssSigner(new RsaBlindedEngine(), new Sha1Digest()));
-            }
-            if (mechanism.Equals("SHA-224withRSAandMGF1"))
-            {
-                return (new PssSigner(new RsaBlindedEngine(), new Sha224Digest()));
-            }
-            if (mechanism.Equals("SHA-256withRSAandMGF1"))
-            {
-                return (new PssSigner(new RsaBlindedEngine(), new Sha256Digest()));
-            }
-            if (mechanism.Equals("SHA-384withRSAandMGF1"))
-            {
-                return (new PssSigner(new RsaBlindedEngine(), new Sha384Digest()));
-            }
-            if (mechanism.Equals("SHA-512withRSAandMGF1"))
-            {
-                return (new PssSigner(new RsaBlindedEngine(), new Sha512Digest()));
-            }
+                if (mechanism == null)
+                    mechanism = algorithm;
 
-            if (mechanism.Equals("NONEwithDSA"))
-            {
-                return (new DsaDigestSigner(new DsaSigner(), new NullDigest()));
-            }
-            if (mechanism.Equals("SHA-1withDSA"))
-            {
-                return (new DsaDigestSigner(new DsaSigner(), new Sha1Digest()));
-            }
-            if (mechanism.Equals("SHA-224withDSA"))
-            {
-                return (new DsaDigestSigner(new DsaSigner(), new Sha224Digest()));
-            }
-            if (mechanism.Equals("SHA-256withDSA"))
-            {
-                return (new DsaDigestSigner(new DsaSigner(), new Sha256Digest()));
-            }
-            if (mechanism.Equals("SHA-384withDSA"))
-            {
-                return (new DsaDigestSigner(new DsaSigner(), new Sha384Digest()));
-            }
-            if (mechanism.Equals("SHA-512withDSA"))
-            {
-                return (new DsaDigestSigner(new DsaSigner(), new Sha512Digest()));
-            }
+                if (mechanism.Equals("RSA"))
+                {
+                    return (new RsaDigestSigner(new NullDigest(), (AlgorithmIdentifier)null));
+                }
+                if (mechanism.Equals("MD2withRSA"))
+                {
+                    return (new RsaDigestSigner(new MD2Digest()));
+                }
+                if (mechanism.Equals("MD4withRSA"))
+                {
+                    return (new RsaDigestSigner(new MD4Digest()));
+                }
+                if (mechanism.Equals("MD5withRSA"))
+                {
+                    return (new RsaDigestSigner(new MD5Digest()));
+                }
+                if (mechanism.Equals("SHA-1withRSA"))
+                {
+                    return (new RsaDigestSigner(new Sha1Digest()));
+                }
+                if (mechanism.Equals("SHA-224withRSA"))
+                {
+                    return (new RsaDigestSigner(new Sha224Digest()));
+                }
+                if (mechanism.Equals("SHA-256withRSA"))
+                {
+                    return (new RsaDigestSigner(new Sha256Digest()));
+                }
+                if (mechanism.Equals("SHA-384withRSA"))
+                {
+                    return (new RsaDigestSigner(new Sha384Digest()));
+                }
+                if (mechanism.Equals("SHA-512withRSA"))
+                {
+                    return (new RsaDigestSigner(new Sha512Digest()));
+                }
+                if (mechanism.Equals("RIPEMD128withRSA"))
+                {
+                    return (new RsaDigestSigner(new RipeMD128Digest()));
+                }
+                if (mechanism.Equals("RIPEMD160withRSA"))
+                {
+                    return (new RsaDigestSigner(new RipeMD160Digest()));
+                }
+                if (mechanism.Equals("RIPEMD256withRSA"))
+                {
+                    return (new RsaDigestSigner(new RipeMD256Digest()));
+                }
 
-            if (mechanism.Equals("NONEwithECDSA"))
-            {
-                return (new DsaDigestSigner(new ECDsaSigner(), new NullDigest()));
-            }
-            if (mechanism.Equals("SHA-1withECDSA"))
-            {
-                return (new DsaDigestSigner(new ECDsaSigner(), new Sha1Digest()));
-            }
-            if (mechanism.Equals("SHA-224withECDSA"))
-            {
-                return (new DsaDigestSigner(new ECDsaSigner(), new Sha224Digest()));
-            }
-            if (mechanism.Equals("SHA-256withECDSA"))
-            {
-                return (new DsaDigestSigner(new ECDsaSigner(), new Sha256Digest()));
-            }
-            if (mechanism.Equals("SHA-384withECDSA"))
-            {
-                return (new DsaDigestSigner(new ECDsaSigner(), new Sha384Digest()));
-            }
-            if (mechanism.Equals("SHA-512withECDSA"))
-            {
-                return (new DsaDigestSigner(new ECDsaSigner(), new Sha512Digest()));
-            }
+                if (mechanism.Equals("RAWRSASSA-PSS"))
+                {
+                    // TODO Add support for other parameter settings
+                    return PssSigner.CreateRawSigner(new RsaBlindedEngine(), new Sha1Digest());
+                }
+                if (mechanism.Equals("PSSwithRSA"))
+                {
+                    // TODO The Sha1Digest here is a default. In JCE version, the actual digest
+                    // to be used can be overridden by subsequent parameter settings.
+                    return (new PssSigner(new RsaBlindedEngine(), new Sha1Digest()));
+                }
+                if (mechanism.Equals("SHA-1withRSAandMGF1"))
+                {
+                    return (new PssSigner(new RsaBlindedEngine(), new Sha1Digest()));
+                }
+                if (mechanism.Equals("SHA-224withRSAandMGF1"))
+                {
+                    return (new PssSigner(new RsaBlindedEngine(), new Sha224Digest()));
+                }
+                if (mechanism.Equals("SHA-256withRSAandMGF1"))
+                {
+                    return (new PssSigner(new RsaBlindedEngine(), new Sha256Digest()));
+                }
+                if (mechanism.Equals("SHA-384withRSAandMGF1"))
+                {
+                    return (new PssSigner(new RsaBlindedEngine(), new Sha384Digest()));
+                }
+                if (mechanism.Equals("SHA-512withRSAandMGF1"))
+                {
+                    return (new PssSigner(new RsaBlindedEngine(), new Sha512Digest()));
+                }
 
-            if (mechanism.Equals("RIPEMD160withECDSA"))
-            {
-                return (new DsaDigestSigner(new ECDsaSigner(), new RipeMD160Digest()));
-            }
+                if (mechanism.Equals("NONEwithDSA"))
+                {
+                    return (new DsaDigestSigner(new DsaSigner(), new NullDigest()));
+                }
+                if (mechanism.Equals("SHA-1withDSA"))
+                {
+                    return (new DsaDigestSigner(new DsaSigner(), new Sha1Digest()));
+                }
+                if (mechanism.Equals("SHA-224withDSA"))
+                {
+                    return (new DsaDigestSigner(new DsaSigner(), new Sha224Digest()));
+                }
+                if (mechanism.Equals("SHA-256withDSA"))
+                {
+                    return (new DsaDigestSigner(new DsaSigner(), new Sha256Digest()));
+                }
+                if (mechanism.Equals("SHA-384withDSA"))
+                {
+                    return (new DsaDigestSigner(new DsaSigner(), new Sha384Digest()));
+                }
+                if (mechanism.Equals("SHA-512withDSA"))
+                {
+                    return (new DsaDigestSigner(new DsaSigner(), new Sha512Digest()));
+                }
 
-            if (mechanism.Equals("SHA1WITHECNR"))
-            {
-                return (new DsaDigestSigner(new ECNRSigner(), new Sha1Digest()));
-            }
-            if (mechanism.Equals("SHA224WITHECNR"))
-            {
-                return (new DsaDigestSigner(new ECNRSigner(), new Sha224Digest()));
-            }
-            if (mechanism.Equals("SHA256WITHECNR"))
-            {
-                return (new DsaDigestSigner(new ECNRSigner(), new Sha256Digest()));
-            }
-            if (mechanism.Equals("SHA384WITHECNR"))
-            {
-                return (new DsaDigestSigner(new ECNRSigner(), new Sha384Digest()));
-            }
-            if (mechanism.Equals("SHA512WITHECNR"))
-            {
-                return (new DsaDigestSigner(new ECNRSigner(), new Sha512Digest()));
-            }
+                if (mechanism.Equals("NONEwithECDSA"))
+                {
+                    return (new DsaDigestSigner(new ECDsaSigner(), new NullDigest()));
+                }
+                if (mechanism.Equals("SHA-1withECDSA"))
+                {
+                    return (new DsaDigestSigner(new ECDsaSigner(), new Sha1Digest()));
+                }
+                if (mechanism.Equals("SHA-224withECDSA"))
+                {
+                    return (new DsaDigestSigner(new ECDsaSigner(), new Sha224Digest()));
+                }
+                if (mechanism.Equals("SHA-256withECDSA"))
+                {
+                    return (new DsaDigestSigner(new ECDsaSigner(), new Sha256Digest()));
+                }
+                if (mechanism.Equals("SHA-384withECDSA"))
+                {
+                    return (new DsaDigestSigner(new ECDsaSigner(), new Sha384Digest()));
+                }
+                if (mechanism.Equals("SHA-512withECDSA"))
+                {
+                    return (new DsaDigestSigner(new ECDsaSigner(), new Sha512Digest()));
+                }
 
-            if (mechanism.Equals("GOST3410"))
-            {
-                return new Gost3410DigestSigner(new Gost3410Signer(), new Gost3411Digest());
-            }
-            if (mechanism.Equals("ECGOST3410"))
-            {
-                return new Gost3410DigestSigner(new ECGost3410Signer(), new Gost3411Digest());
-            }
+                if (mechanism.Equals("RIPEMD160withECDSA"))
+                {
+                    return (new DsaDigestSigner(new ECDsaSigner(), new RipeMD160Digest()));
+                }
 
-            if (mechanism.Equals("SHA1WITHRSA/ISO9796-2"))
-            {
-                return new Iso9796d2Signer(new RsaBlindedEngine(), new Sha1Digest(), true);
-            }
-            if (mechanism.Equals("MD5WITHRSA/ISO9796-2"))
-            {
-                return new Iso9796d2Signer(new RsaBlindedEngine(), new MD5Digest(), true);
-            }
-            if (mechanism.Equals("RIPEMD160WITHRSA/ISO9796-2"))
-            {
-                return new Iso9796d2Signer(new RsaBlindedEngine(), new RipeMD160Digest(), true);
-            }
+                if (mechanism.Equals("SHA1WITHECNR"))
+                {
+                    return (new DsaDigestSigner(new ECNRSigner(), new Sha1Digest()));
+                }
+                if (mechanism.Equals("SHA224WITHECNR"))
+                {
+                    return (new DsaDigestSigner(new ECNRSigner(), new Sha224Digest()));
+                }
+                if (mechanism.Equals("SHA256WITHECNR"))
+                {
+                    return (new DsaDigestSigner(new ECNRSigner(), new Sha256Digest()));
+                }
+                if (mechanism.Equals("SHA384WITHECNR"))
+                {
+                    return (new DsaDigestSigner(new ECNRSigner(), new Sha384Digest()));
+                }
+                if (mechanism.Equals("SHA512WITHECNR"))
+                {
+                    return (new DsaDigestSigner(new ECNRSigner(), new Sha512Digest()));
+                }
+
+                if (mechanism.Equals("GOST3410"))
+                {
+                    return new Gost3410DigestSigner(new Gost3410Signer(), new Gost3411Digest());
+                }
+                if (mechanism.Equals("ECGOST3410"))
+                {
+                    return new Gost3410DigestSigner(new ECGost3410Signer(), new Gost3411Digest());
+                }
+
+                if (mechanism.Equals("SHA1WITHRSA/ISO9796-2"))
+                {
+                    return new Iso9796d2Signer(new RsaBlindedEngine(), new Sha1Digest(), true);
+                }
+                if (mechanism.Equals("MD5WITHRSA/ISO9796-2"))
+                {
+                    return new Iso9796d2Signer(new RsaBlindedEngine(), new MD5Digest(), true);
+                }
+                if (mechanism.Equals("RIPEMD160WITHRSA/ISO9796-2"))
+                {
+                    return new Iso9796d2Signer(new RsaBlindedEngine(), new RipeMD160Digest(), true);
+                }
 
             if (Platform.EndsWith(mechanism, "/X9.31"))
             {
@@ -548,25 +581,20 @@ namespace Org.BouncyCastle.Security
                 {
                     int endPos = withPos + "WITH".Length;
 
-                    string digestName = x931.Substring(0, withPos);
-                    IDigest digest = DigestUtilities.GetDigest(digestName);
+                        string digestName = x931.Substring(0, withPos);
+                        IDigest digest = DigestUtilities.GetDigest(digestName);
 
-                    string cipherName = x931.Substring(endPos, x931.Length - endPos);
-                    if (cipherName.Equals("RSA"))
-                    {
-                        IAsymmetricBlockCipher cipher = new RsaBlindedEngine();
-                        return new X931Signer(cipher, digest);
+                        string cipherName = x931.Substring(endPos, x931.Length - endPos);
+                        if (cipherName.Equals("RSA"))
+                        {
+                            IAsymmetricBlockCipher cipher = new RsaBlindedEngine();
+                            return new X931Signer(cipher, digest);
+                        }
                     }
                 }
+
+                throw new SecurityUtilityException("Signer " + algorithm + " not recognised.");
             }
-
-            throw new SecurityUtilityException("Signer " + algorithm + " not recognised.");
-        }
-
-        public static string GetEncodingName(
-            DerObjectIdentifier oid)
-        {
-            return (string) algorithms[oid.Id];
         }
     }
 }
